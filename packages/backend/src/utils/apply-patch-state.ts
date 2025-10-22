@@ -1,4 +1,4 @@
-import { Transaction } from "@matter/general";
+import { Transaction, Logger } from "@matter/general";
 
 /**
  * Safely applies a patch to state, handling transaction contexts properly.
@@ -38,21 +38,40 @@ function applyPatch<T extends object>(state: T, patch: Partial<T>): Partial<T> {
     }
   }
 
-  // Set properties individually to avoid transaction conflicts
-  try {
-    for (const key in actualPatch) {
-      if (Object.hasOwn(actualPatch, key)) {
-        state[key] = actualPatch[key] as T[Extract<keyof T, string>];
+  // Set properties individually to avoid transaction conflicts. If a single
+  // property assignment triggers validation (for example a Matter constraint)
+  // we log a warning and skip that property instead of failing the whole
+  // transaction. This avoids crashing the process when an entity reports
+  // invalid attributes (see issue: invalid color temp bounds from some devices).
+  const logger = Logger.get("applyPatchState");
+  const appliedPatch: Partial<T> = {};
+
+  for (const key in actualPatch) {
+    if (!Object.hasOwn(actualPatch, key)) continue;
+    try {
+      state[key] = actualPatch[key] as T[Extract<keyof T, string>];
+      appliedPatch[key] = actualPatch[key];
+    } catch (e) {
+      // Log a warning and continue applying other properties. Include the
+      // property name and the error message to help debugging problematic
+      // devices that report out-of-spec values.
+      try {
+        logger.warn(
+          `Failed to set property ${String(key)} on state due to error: ${String(e)}`,
+        );
+      } catch {
+        // Fallback to console if the logger itself fails for some reason.
+        // eslint-disable-next-line no-console
+        console.warn(
+          `applyPatchState: failed to set property ${String(key)}:`,
+          e,
+        );
       }
+      // continue with next property
     }
-  } catch (e) {
-    throw new Error(
-      `Failed to patch the following properties: ${JSON.stringify(actualPatch, null, 2)}`,
-      { cause: e },
-    );
   }
 
-  return actualPatch;
+  return appliedPatch;
 }
 
 function deepEqual<T>(a: T, b: T): boolean {

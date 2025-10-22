@@ -8,6 +8,7 @@ import type { ColorInstance } from "color";
 import { applyPatchState } from "../../utils/apply-patch-state.js";
 import { HomeAssistantEntityBehavior } from "./home-assistant-entity-behavior.js";
 import type { ValueGetter, ValueSetter } from "./utils/cluster-config.js";
+import { Logger } from "@matter/general";
 
 export type ColorControlMode =
   | ColorControl.ColorMode.CurrentHueAndCurrentSaturation
@@ -72,6 +73,56 @@ export class ColorControlServerBase extends FeaturedBase {
       currentMireds = Math.max(Math.min(currentMireds, maxMireds), minMireds);
     }
 
+    // Sanitize color temperature values: clamp to the physical min/max to
+    // avoid violating Matter constraints when devices report invalid ranges.
+    const logger = Logger.get("ColorControlServer");
+    const sanitized: {
+      coupleColorTempToLevelMinMireds?: number;
+      colorTempPhysicalMinMireds?: number;
+      colorTempPhysicalMaxMireds?: number;
+      startUpColorTemperatureMireds?: number;
+      colorTemperatureMireds?: number | undefined;
+    } = {};
+
+    // ensure min <= max
+    let physMin = minMireds;
+    let physMax = maxMireds;
+    if (physMin > physMax) {
+      logger.warn(
+        `Computed physical min (${physMin}) > physical max (${physMax}), swapping values`,
+      );
+      [physMin, physMax] = [physMax, physMin];
+    }
+
+    sanitized.coupleColorTempToLevelMinMireds = physMin;
+    sanitized.colorTempPhysicalMinMireds = physMin;
+    sanitized.colorTempPhysicalMaxMireds = physMax;
+
+    // Clamp startup/current mireds into physical bounds and warn if clamped
+    const clamp = (v: number, lo: number, hi: number) => {
+      if (v < lo) return lo;
+      if (v > hi) return hi;
+      return v;
+    };
+
+    const clampedStart = clamp(startUpMireds, physMin, physMax);
+    if (clampedStart !== startUpMireds) {
+      logger.warn(
+        `startUpColorTemperatureMireds ${startUpMireds} out of bounds [${physMin}, ${physMax}], clamped to ${clampedStart}`,
+      );
+    }
+    sanitized.startUpColorTemperatureMireds = clampedStart;
+
+    if (currentMireds != null) {
+      const clampedCurrent = clamp(currentMireds, physMin, physMax);
+      if (clampedCurrent !== currentMireds) {
+        logger.warn(
+          `colorTemperatureMireds ${currentMireds} out of bounds [${physMin}, ${physMax}], clamped to ${clampedCurrent}`,
+        );
+      }
+      sanitized.colorTemperatureMireds = clampedCurrent;
+    }
+
     await applyPatchState(this.state, {
       colorMode: this.getColorModeFromFeatures(
         config.getCurrentMode(entity.state, this.agent),
@@ -84,11 +135,7 @@ export class ColorControlServerBase extends FeaturedBase {
         : {}),
       ...(this.features.colorTemperature
         ? {
-            coupleColorTempToLevelMinMireds: minMireds,
-            colorTempPhysicalMinMireds: minMireds,
-            colorTempPhysicalMaxMireds: maxMireds,
-            startUpColorTemperatureMireds: startUpMireds,
-            colorTemperatureMireds: currentMireds,
+            ...sanitized,
           }
         : {}),
     });
