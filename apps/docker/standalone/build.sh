@@ -4,7 +4,9 @@ NODE_VERSION=$(node -v)
 NODE_VERSION=${NODE_VERSION:1}
 
 PACKAGE_VERSION=$(tar xfO package.tgz package/package.json | jq -r ".version")
-IMAGE_NAME="ghcr.io/t0bst4r/home-assistant-matter-hub"
+# Use GITHUB_REPOSITORY_OWNER if available (in GitHub Actions), otherwise default to t0bst4r
+REPO_OWNER="${GITHUB_REPOSITORY_OWNER:-t0bst4r}"
+IMAGE_NAME="ghcr.io/${REPO_OWNER}/home-assistant-matter-hub"
 
 DOCKER_PUSH="false"
 TAG_LATEST="false"
