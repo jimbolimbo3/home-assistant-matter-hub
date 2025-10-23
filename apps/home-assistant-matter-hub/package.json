@@ -9,9 +9,9 @@
     "home-assistant-matter-hub": "./dist/backend/cli.js"
   },
   "author": {
-    "email": "t0bst4r@outlook.com",
-    "name": "t0bst4r",
-    "url": "https://github.com/t0bst4r"
+    "email": "jimbolimbo4@gmail.com",
+    "name": "jimbolimbo3",
+    "url": "https://github.com/jimbolimbo3"
   },
   "keywords": [
     "home-assistant",
@@ -32,7 +32,7 @@
     "smart-home"
   ],
   "bugs": {
-    "url": "https://github.com/t0bst4r/home-assistant-matter-hub/issues"
+    "url": "https://github.com/jimbolimbo3/home-assistant-matter-hub/issues"
   },
   "license": "Apache-2.0",
   "repository": "github:t0bst4r/home-assistant-matter-hub",
