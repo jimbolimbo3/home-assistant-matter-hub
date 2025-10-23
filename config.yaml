@@ -1,0 +1,25 @@
+name: Home Assistant Matter Hub
+version: "3.0.0-alpha.95"
+slug: home-assistant-matter-hub
+description: Connect your Home Assistant instance to Matter/Thread
+url: https://github.com/jimbolimbo3/home-assistant-matter-hub
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+image: ghcr.io/jimbolimbo3/home-assistant-matter-hub-addon
+startup: application
+boot: auto
+host_network: true
+hassio_api: true
+hassio_role: default
+options:
+  log_level: info
+schema:
+  log_level: list(silly|debug|info|warn|error)
+  http_auth_username: str?
+  http_auth_password: password?
+  http_ip_whitelist: [str]?
+  mdns_network_interface: str?
