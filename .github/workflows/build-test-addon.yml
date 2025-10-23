@@ -1,0 +1,139 @@
+name: Build Test Addon
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      push_to_registry:
+        description: 'Push image to GitHub Container Registry'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-addon:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: "pnpm"
+
+      - name: Setup NX cache
+        uses: actions/cache@v4
+        with:
+          path: .nx
+          key: ${{ runner.os }}-nx-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-nx-
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: github.event.inputs.push_to_registry == 'true' || github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: npx nx run-many -t test
+
+      - name: Build project
+        run: npx nx run-many -t build
+
+      - name: Create package tarball
+        run: npx nx run home-assistant-matter-hub:pack
+
+      - name: Retrieve package for Docker
+        run: npx nx run docker:retrieve-package
+
+      - name: Get package version
+        id: version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./apps/home-assistant-matter-hub/package.json').version")
+          echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $PACKAGE_VERSION"
+
+      - name: Build addon Docker image
+        working-directory: apps/docker/addon
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "${{ github.event.inputs.push_to_registry }}" == "true" ] || [ "${{ github.event_name }}" == "push" ]; then
+            ./build.sh --push --all-platforms
+          else
+            ./build.sh
+          fi
+
+      - name: Export Docker image for local testing
+        if: github.event.inputs.push_to_registry != 'true' && github.event_name != 'push'
+        working-directory: apps/docker/addon
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg NODE_VERSION=$(node -v | sed 's/v//') \
+            --build-arg PACKAGE_VERSION=$PACKAGE_VERSION \
+            --output type=docker,dest=/tmp/addon-image.tar \
+            -t ghcr.io/${{ github.repository_owner }}/home-assistant-matter-hub-addon:$PACKAGE_VERSION \
+            .
+
+      - name: Upload Docker image artifact
+        if: github.event.inputs.push_to_registry != 'true' && github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-assistant-matter-hub-addon-${{ steps.version.outputs.version }}
+          path: /tmp/addon-image.tar
+          retention-days: 7
+
+      - name: Upload package tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-assistant-matter-hub-package-${{ steps.version.outputs.version }}
+          path: apps/docker/addon/package.tgz
+          retention-days: 7
+
+      - name: Build summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** \`ghcr.io/${{ github.repository_owner }}/home-assistant-matter-hub-addon:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.push_to_registry }}" == "true" ] || [ "${{ github.event_name }}" == "push" ]; then
+            echo "✅ Image pushed to GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📦 Docker image available as artifact for download" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### To load the image:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "docker load < addon-image.tar" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
