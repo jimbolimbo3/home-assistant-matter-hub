@@ -78,7 +78,7 @@ jobs:
 
       - name: Lint
         if: steps.version.outputs.release-required == 'yes'
-        run: pnpm run lint
+        run: pnpm run lint:fix # Modificato da "pnpm run lint"
 
       - name: Commit, tag and push
         if: steps.version.outputs.release-required == 'yes'
