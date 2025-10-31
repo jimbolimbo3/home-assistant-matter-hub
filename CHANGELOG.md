@@ -1,3 +1,17 @@
+## 3.0.0-alpha.97 (2025-10-31)
+
+### 📚 Documentation Changes
+
+- **addon:** add addon repository setup guide and sample repo files ([9936c08](https://github.com/jimbolimbo3/home-assistant-matter-hub/commit/9936c08))
+
+### 🚧 Chores
+
+- no-op commit for empty code-change set ([6ac1c45](https://github.com/jimbolimbo3/home-assistant-matter-hub/commit/6ac1c45))
+
+### ❤️ Thank You
+
+- Luigi Sirito
+
 ## 3.0.0-alpha.95 (2025-10-22)
 
 ### 🐛 Fixes
