@@ -21,7 +21,6 @@ jobs:
       - run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -52,9 +51,7 @@ jobs:
         id: version
         run: |
           PREV_PACKAGE_VERSION=$(node -p "require('./apps/home-assistant-matter-hub/package.json').version")
-
           npx nx release version
-
           NEXT_PACKAGE_VERSION=$(node -p "require('./apps/home-assistant-matter-hub/package.json').version")
           echo "package-version=$NEXT_PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
           if [ "$PREV_PACKAGE_VERSION" == "$NEXT_PACKAGE_VERSION" ]; then
@@ -64,7 +61,6 @@ jobs:
           fi
           echo "Previous version: $PREV_PACKAGE_VERSION, New Version: $NEXT_PACKAGE_VERSION, Release required: $RELEASE_REQUIRED"
           echo "release-required=$RELEASE_REQUIRED" >> "$GITHUB_OUTPUT"
-
       - name: Create Changelog
         id: changelog
         if: steps.version.outputs.release-required == 'yes'
@@ -76,7 +72,6 @@ jobs:
           echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-
       - name: Build
         if: steps.version.outputs.release-required == 'yes'
         run: npx nx run-many -t test build
@@ -93,7 +88,6 @@ jobs:
           git commit -m "chore: release v$PACKAGE_VERSION"
           git tag -a v$PACKAGE_VERSION -m "Release v$PACKAGE_VERSION" -m "[skip ci]"
           git push --follow-tags
-
       - name: Publish
         if: steps.version.outputs.release-required == 'yes'
         env:
@@ -113,7 +107,6 @@ jobs:
             --notes "$CHANGELOG" \
             --title "v$PACKAGE_VERSION" \
             --verify-tag
-
       - name: Upload Documentation
         if: steps.version.outputs.release-required == 'yes'
         uses: actions/upload-pages-artifact@v4
